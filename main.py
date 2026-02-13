@@ -1,6 +1,4 @@
-import copy
 import random
-from dataclasses import dataclass, field
 import datetime
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -10,50 +8,18 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Side, PatternFill, Font
 from openpyxl.utils import get_column_letter
 
-
-@dataclass
-class Seance:
-    dtStart: datetime.datetime
-    dtEnd: datetime.datetime
-    salle: str
-    Prof_ID: str
-    titre: str
-    Nom_Prof: str
-
-
-    def __repr__(self):
-        return f"Seance(dtStart='{self.dtStart}', dtEnd='{self.dtEnd}', salle='{self.salle}', Prof_ID='{self.Prof_ID}')"
-
-
-@dataclass
-class Cours:
-    duree:int
-    titre:str
-    nb_etudiant:int
-    Prof_ID:str
-
-@dataclass
-class Professeur:
-    Prof_ID:str
-    Nom:str
-    disponibilites:list=field(default_factory=list)
-
-
-@dataclass
-class Salle:
-    Salle_ID:str
-    capacite: int
-    disponibilites:list=field(default_factory=list)
+from tools import intersection, union
+from _types import Salle,Professeur,Seance,Cours
 
 
 
 
 class Agenda:
 
-    salles=[]
-    professeurs=[]
-    cours=[]
-    seances=[]
+    salles:list[Salle]=[]
+    professeurs:list[Professeur]=[]
+    cours:list[Cours]=[]
+    seances:list[Seance]=[]
 
     # Si vous modifiez ces portées, supprimez le fichier token.json.
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
@@ -63,6 +29,9 @@ class Agenda:
         """Authentification Google centralisée, retourne les credentials."""
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         return Credentials.from_service_account_file("credentials.json")
+
+
+
 
 
 
@@ -182,6 +151,8 @@ class Agenda:
         titre: str
         nb_etudiant: int
         Prof_ID: str
+        requirments: str = ""
+
 
     @dataclass
     class Professeur:
@@ -193,6 +164,7 @@ class Agenda:
     class Salle:
         Salle_ID: str
         capacite: int
+        tags: str = ""
         disponibilites = []
 
     class Agenda:
@@ -299,7 +271,6 @@ class Agenda:
             for p in self.load_data_from_sheet(classeur_id, "Professeurs"):
                 self.professeurs.append(Professeur(**p))
 
-
             self.cours = [Cours(**p) for p in self.load_data_from_sheet(classeur_id, "Cours")]
             self.salles = [Salle(**p) for p in self.load_data_from_sheet(classeur_id, "Salles")]
 
@@ -404,25 +375,23 @@ class Agenda:
             p.disponibilites.clear()
             for d in dispo_prof:
                 if p.Prof_ID==d["Prof_ID"]:
-                    pd = self.convert_plage(d)
-                    toAdd=True
-                    for ds in p.disponibilites:
-                        if not intersection(ds,pd) is None: toAdd=False
+                    p.disponibilites.append(self.convert_plage(d))
 
-                    if toAdd: p.disponibilites.append(pd)
+            p.disponibilites=union(p.disponibilites)
 
         dispo_salle = self.load_data_from_sheet(classeur_id, "DispoSalle")
         for s in self.salles:
+            s.tags="" if type(s.tags)==float else s.tags
             s.disponibilites.clear()
             for d in dispo_salle:
                 if s.Salle_ID==d["Salle_ID"]:
-                    pd = self.convert_plage(d)
-                    toAdd = True
-                    for ds in s.disponibilites:
-                        if not intersection(ds, pd) is None: toAdd = False
+                    s.disponibilites.append(self.convert_plage(d))
 
-                    if toAdd:
-                        s.disponibilites.append(pd)
+            s.disponibilites = union(s.disponibilites)
+
+        for c in self.cours:
+            c.requirments="" if type(c.requirments)==float else c.requirments
+
 
         return {"professeurs":self.professeurs,"cours":self.cours,"salles":self.salles}
 
@@ -529,7 +498,7 @@ class Agenda:
                 p = self.get_prof(c.Prof_ID)
                 s = self.get_salle(min_capacite=c.nb_etudiant)
 
-                if c.nb_etudiant <= s.capacite:
+                if c.nb_etudiant <= s.capacite and (c.requirments=="" or set(c.requirments.split(",")).issubset(s.tags.split(","))):
                     plage_seance = self.convert_duration_to_plage(s.disponibilites, c.duree)
                     if plage_seance:
                         if self.check_plage(p.disponibilites, plage_seance):
@@ -546,16 +515,6 @@ class Agenda:
         return None
 
 
-def filter(seances:list[Seance],dtStart:datetime.datetime,dtEnd:datetime.datetime):
-    return [s for s in seances if s.dtStart>=dtStart and s.dtEnd<=dtEnd]
-
-
-def intersection(plage1:tuple,plage2:tuple):
-    rc=(max(plage1[0],plage2[0]),min(plage1[1],plage2[1]))
-    if rc[0]<rc[1]:
-        return rc
-    else:
-        return None
 
 
 
