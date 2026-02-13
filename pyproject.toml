@@ -1,0 +1,16 @@
+[project]
+name = "pythonproject"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "datetime>=6.0",
+    "google-api-python-client>=2.190.0",
+    "google-auth-httplib2>=0.3.0",
+    "google-auth-oauthlib>=1.2.4",
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.0",
+    "pandas-stubs~=3.0.0",
+    "pyopenxlsx>=0.2.2",
+    "pytest>=9.0.2",
+]
