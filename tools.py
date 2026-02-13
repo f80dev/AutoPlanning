@@ -3,7 +3,7 @@ from datetime import datetime
 from _types import Seance
 
 
-def filter(seances:list[Seance],dtStart:datetime,dtEnd:datetime):
+def filter_plage(seances:list[Seance],dtStart:datetime,dtEnd:datetime):
     return [s for s in seances if s.dtStart>=dtStart and s.dtEnd<=dtEnd]
 
 
@@ -44,3 +44,22 @@ def intersection(plage1:tuple,plage2:tuple):
         return rc
     else:
         return None
+
+def exclude_from(plage1:tuple,plage2:tuple):
+    s1, e1 = plage1
+    s2, e2 = plage2
+
+    # Si les plages ne se chevauchent pas, retourner la plage1 intacte
+    if e2 <= s1 or s2 >= e1:
+        return [plage1]
+
+    result = []
+    # S'il y a une partie de plage1 avant plage2
+    if s1 < s2:
+        result.append((s1, s2))
+
+    # S'il y a une partie de plage1 après plage2
+    if e1 > e2:
+        result.append((e2, e1))
+
+    return result

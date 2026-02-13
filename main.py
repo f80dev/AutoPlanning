@@ -8,7 +8,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Side, PatternFill, Font
 from openpyxl.utils import get_column_letter
 
-from tools import intersection, union
+from tools import intersection, union, filter_plage
 from _types import Salle,Professeur,Seance,Cours
 
 
@@ -658,7 +658,7 @@ if __name__ == '__main__':
     planning=a.run()
     if planning:
         export_planning_to_excel(
-            filter(planning,datetime.datetime.now(),datetime.datetime.now()+datetime.timedelta(days=30)),
+            filter_plage(planning,datetime.datetime.now(),datetime.datetime.now()+datetime.timedelta(days=30)),
             min_hour=8,
             max_hour=20
         )
