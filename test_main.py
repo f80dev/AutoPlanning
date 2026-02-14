@@ -1,8 +1,5 @@
-from datetime import datetime
 
-import pytest
-
-from main import intersection
+from main import intersection, Agenda
 
 
 def test_intersection():
@@ -13,3 +10,8 @@ def test_intersection():
     p3=(10,12)
     assert intersection(p1,p3) is None
     assert intersection(p3,p1) is None
+
+
+def test_init_liste():
+    a=Agenda()
+    a.init_listes(classeur_id ="./planning.xlsx" )

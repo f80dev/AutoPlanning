@@ -19,7 +19,7 @@ class Seance:
 class Cours:
     duree:int
     titre:str
-    nb_etudiant:int
+    groupe:str
     Prof_ID:str
     requirments:str=""
 
@@ -37,3 +37,7 @@ class Salle:
     disponibilites:list=field(default_factory=list)
     tags: str = ""
 
+@dataclass
+class Groupe:
+    Groupe_ID:str
+    effectif: int
