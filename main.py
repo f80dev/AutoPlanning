@@ -4,14 +4,13 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import pandas as pd
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Side, PatternFill, Font
-from openpyxl.utils import get_column_letter
 
-from tools import intersection, union, filter_plage, export_planning_to_excel
-from _types import Salle, Professeur, Seance, Cours, Groupe
+from tools import union
+from _types import Salle, Professeur, Seance, Cours, Groupe, Plage, intersection
 
 
+def filter_plage(seances:list[Seance],dtStart:datetime,dtEnd:datetime):
+    return [s for s in seances if s.dtStart>=dtStart and s.dtEnd<=dtEnd]
 
 
 class Agenda:
@@ -21,7 +20,7 @@ class Agenda:
     cours:list[Cours]=[]
     seances:list[Seance]=[]
     groupes:list[Groupe]=[]
-    distances:list[tuple]=[]
+    distances:list[Plage]=[]
 
     # Si vous modifiez ces portées, supprimez le fichier token.json.
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
@@ -79,22 +78,6 @@ class Agenda:
 
 
 
-
-    def convert_plage(self,d:dict) -> tuple:
-        debut=d["dtStart"]
-        fin=d["dtEnd"]
-        if type(debut)==str:
-            debut=debut.replace("  "," ").replace(" ","/2026 ")
-            debut=datetime.datetime.strptime(debut,"%d/%m/%Y %H:%M")
-
-        if type(fin)==str:
-            fin = fin.replace("  "," ").replace(" ", "/2026 ")
-            fin=datetime.datetime.strptime(fin,"%d/%m/%Y %H:%M")
-
-        return (debut,fin)
-
-
-
     def convert_plage_old(self,debut, fin) -> list:
         """
         Génère une liste de créneaux horaires d'une heure entre une date de début et de fin.
@@ -143,24 +126,24 @@ class Agenda:
         self.distances=[p for p in self.load_data_from_sheet(classeur_id, "Distances")]
 
 
-        dispo_prof=self.load_data_from_sheet(classeur_id, "DispoProf")
+        indispo_prof=self.load_data_from_sheet(classeur_id, "DispoProf")
         for p in self.professeurs:
-            p.disponibilites.clear()
-            for d in dispo_prof:
+            p.dispos.clear()
+            for d in indispo_prof:
                 if p.Prof_ID==d["Prof_ID"]:
-                    p.disponibilites.append(self.convert_plage(d))
+                    p.dispos.append(self.convert_plage(d))
 
-            p.disponibilites=union(p.disponibilites)
+            p.dispos=union(p.dispos)
 
         dispo_salle = self.load_data_from_sheet(classeur_id, "DispoSalle")
         for s in self.salles:
             s.tags="" if type(s.tags)==float else s.tags
-            s.disponibilites.clear()
+            s.dispos.clear()
             for d in dispo_salle:
                 if s.Salle_ID==d["Salle_ID"]:
-                    s.disponibilites.append(self.convert_plage(d))
+                    s.dispos.append(self.convert_plage(d))
 
-            s.disponibilites = union(s.disponibilites)
+            s.dispos = union(s.dispos)
 
         for c in self.cours:
             c.requirments="" if type(c.requirments)==float else c.requirments
@@ -173,6 +156,8 @@ class Agenda:
             "goupes":self.groupes,
             "distances":self.distances
         }
+
+
 
 
     def get_salle(self,min_capacite=0,requirments="") -> Salle | None:
@@ -193,10 +178,10 @@ class Agenda:
         return random.choice(self.cours)
 
 
-    def check_plage(self,disponibilite:list,plage:tuple) -> tuple | None:
-        for d in disponibilite:
-            if d[0]<=plage[0] and d[1]>=plage[1]:return d
-        return None
+    def check_plage(self,indisponibilite:list,plage:Plage) -> bool:
+        for d in indisponibilite:
+            if not intersection(d,plage) is None:return False
+        return True
 
 
     def get_profs(self,prof_id=None):
@@ -210,7 +195,7 @@ class Agenda:
         return rc
 
 
-    def update_plage(self,dispo:tuple,plage:tuple) -> tuple | None:
+    def update_plage(self,dispo:Plage,plage:Plage) -> Plage | None:
         """
         reserve une plage dans une disponibilité (soit au début soit à la fin)
         :param dispo:
@@ -224,33 +209,28 @@ class Agenda:
             return (dispo[0],plage[0])
 
 
-    def convert_duration_to_plage(self,dispo:list,duree:int=1):
-        plage=self.find_plage_for_duration(dispo,duree)
-        if plage is None: return None
-        return (plage[0], plage[0]+datetime.timedelta(hours=duree))
 
 
-    def update_dispos(self,dispo:list,plage:tuple):
+    def update_dispos(self,dispo:list,plage:Plage):
         p=self.check_plage(dispo,plage)
         dispo.append(self.update_plage(p,plage))
         dispo.remove(p)
         return dispo
 
 
-    def reserve(self,dispo:list,plage:tuple):
-        for d in dispo:
-            if d[0]<=plage[0] and d[1]>=plage[1]:
-                if d[0]!=plage[0]:dispo.append((d[0],plage[0]))
-                if plage[1]!=d[1]:dispo.append((plage[1],d[1]))
-                dispo.remove(d)
-                return dispo
+    def reserve(self,indispos:list[Plage],plage:Plage) -> list[Plage]:
+        for d in indispos:
+            if not intersection(d,plage) is None:
+                raise RuntimeError("Pas de dispo")
+                return indispos
 
-        raise RuntimeError("La réservation ne fonctionne pas, c'est anormal")
-
+        indispos.append(plage)
+        return indispos
 
 
 
-    def find_plage_for_duration(self,disponibilite:list, duree:int) -> tuple | None:
+
+    def find_plage_for_duration(self,disponibilite:list, duree:int) -> Plage | None:
         """
         cherche une disponiblité et met a jour les dispos suite à réservation
         :param disponibilite:
@@ -290,18 +270,19 @@ class Agenda:
                     requirments=c.requirments
                 )
 
-                plage_seance = self.convert_duration_to_plage(s.disponibilites, c.duree)
+                #dispo_salles = self.create_disponibilite(s.dispos)
+                plage_seance = self.find_plage_for_duration(s.dispos,c.duree)
                 if plage_seance:
                     b=True
                     for p in profs:
-                        if not self.check_plage(p.disponibilites, plage_seance):
+                        if not self.check_plage(p.dispos, plage_seance):
                             b=False
                             break
 
                     if b:
                         planning.append(Seance(plage_seance[0], plage_seance[1], s.Salle_ID, p.Prof_ID, c.titre, p.Nom))
-                        s.disponibilites = a.reserve(s.disponibilites, plage_seance)
-                        p.disponibilites = a.reserve(p.disponibilites, plage_seance)
+                        s.dispos = a.reserve(s.dispos, plage_seance)
+                        p.dispos = a.reserve(p.dispos, plage_seance)
                         self.cours.remove(c)
 
             if rc:
@@ -311,13 +292,35 @@ class Agenda:
 
         return None
 
+    def add_night_to_indisponibilite(self,indisponibilite:list[Plage],
+                                     dtStart:datetime.datetime,dtEnd:datetime.datetime,
+                                     open_hour:int=8,close_hour:int=20):
+        rc=list()
+        l=sorted(indisponibilite, key=lambda x: x.dtStart)
+        for d in range(dtStart,dtEnd,3600*24):
+            pass
+
+
+
+    def create_disponibilite(self, indisponibilite:list[Plage]) -> list[Plage]:
+        rc=[]
+        # Tri des plages par date de début (premier élément du tuple)
+        l = sorted(indisponibilite, key=lambda x: x.dtStart)
+        for idx in range(len(indisponibilite)-1):
+            start=l[idx].dtStart
+            end=l[idx+1].dtEnd
+            rc.append(Plage(start,end))
+        return rc
+
+
+
 
 if __name__ == '__main__':
     a=Agenda()
     planning=a.run()
-    if planning:
-        export_planning_to_excel(
-            filter_plage(planning,datetime.datetime.now(),datetime.datetime.now()+datetime.timedelta(days=30)),
-            min_hour=8,
-            max_hour=20
-        )
+    # if planning:
+    #     export_planning_to_excel(
+    #         filter_plage(planning,datetime.datetime.now(),datetime.datetime.now()+datetime.timedelta(days=30)),
+    #         min_hour=8,
+    #         max_hour=20
+    #     )
