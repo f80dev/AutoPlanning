@@ -1,3 +1,11 @@
+import datetime
+
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+
+from _types import Seance
+
 
 def export_planning_to_excel(planning: list[Seance], filename: str = "planning_output.xlsx", min_hour: int = 0,
                              max_hour: int = 23):
@@ -16,14 +24,15 @@ def export_planning_to_excel(planning: list[Seance], filename: str = "planning_o
     header_font = Font(bold=True, color="FFFFFF")
     center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
     header_fill = (PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid"))
+    cell_fill = (PatternFill(start_color="40FFFF", end_color="40FFFF", fill_type="solid"))
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'),
                          bottom=Side(style='thin'))
 
     # --- Onglet Planning Visuel ---
 
     # 1. Déterminer la plage de dates et les salles
-    min_date = min(s.dtStart for s in planning).replace(minute=0, second=0, microsecond=0)
-    max_date = max(s.dtEnd for s in planning)
+    min_date = min(s.plage.dtStart for s in planning).replace(minute=0, second=0, microsecond=0)
+    max_date = max(s.plage.dtEnd for s in planning)
     salles = sorted(list(set(s.salle for s in planning)))
 
     # Créer un mapping des salles vers les lignes
@@ -82,8 +91,8 @@ def export_planning_to_excel(planning: list[Seance], filename: str = "planning_o
         if seance.salle not in salle_to_row: continue
 
         row_idx = salle_to_row[seance.salle]
-        start_dt = seance.dtStart.replace(minute=0, second=0, microsecond=0)
-        end_dt = seance.dtEnd.replace(minute=0, second=0, microsecond=0)
+        start_dt = seance.plage.dtStart.replace(minute=0, second=0, microsecond=0)
+        end_dt = seance.plage.dtEnd.replace(minute=0, second=0, microsecond=0)
 
         start_col = datetime_to_col.get(start_dt)
         end_col_dt = end_dt - datetime.timedelta(hours=1)
@@ -93,9 +102,10 @@ def export_planning_to_excel(planning: list[Seance], filename: str = "planning_o
         if start_col and end_col:
             ws.merge_cells(start_row=row_idx, start_column=start_col, end_row=row_idx, end_column=end_col)
             cell = ws.cell(row=row_idx, column=start_col)
-            cell.value = f"{seance.titre} - {seance.Nom_Prof}"
+            cell.value = f"{seance.titre} - Groupe {seance.group} - {seance.Nom_Prof}"
             cell.alignment = center_align
             cell.border = thin_border
+            cell.fill=cell_fill
 
     # 5. Ajuster la largeur des colonnes
     ws.column_dimensions['A'].width = 12
@@ -114,8 +124,8 @@ def export_planning_to_excel(planning: list[Seance], filename: str = "planning_o
     # Remplissage des données
     for seance in planning:
         row_data = [
-            seance.dtStart,
-            seance.dtEnd,
+            seance.plage.dtStart,
+            seance.plage.dtEnd,
             seance.salle,
             seance.titre,
             seance.Nom_Prof,

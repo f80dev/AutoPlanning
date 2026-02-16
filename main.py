@@ -5,12 +5,12 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import pandas as pd
 
-from tools import union
-from _types import Salle, Professeur, Seance, Cours, Groupe, Plage, intersection
+from _types import Salle, Professeur, Seance, Cours, Groupe, Plage, intersection, union, exclude_from, Distance
+from export import export_planning_to_excel
 
 
 def filter_plage(seances:list[Seance],dtStart:datetime,dtEnd:datetime):
-    return [s for s in seances if s.dtStart>=dtStart and s.dtEnd<=dtEnd]
+    return [s for s in seances if s.plage.dtStart>=dtStart and s.plage.dtEnd<=dtEnd]
 
 
 class Agenda:
@@ -20,7 +20,7 @@ class Agenda:
     cours:list[Cours]=[]
     seances:list[Seance]=[]
     groupes:list[Groupe]=[]
-    distances:list[Plage]=[]
+    distances:list[Distance]=[]
 
     # Si vous modifiez ces portées, supprimez le fichier token.json.
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
@@ -123,17 +123,22 @@ class Agenda:
         self.cours = [Cours(**p) for p in self.load_data_from_sheet(classeur_id, "Cours")]
         self.salles = [Salle(**p) for p in self.load_data_from_sheet(classeur_id, "Salles")]
         self.groupes = [Groupe(**p) for p in self.load_data_from_sheet(classeur_id, "Groupes")]
-        self.distances=[p for p in self.load_data_from_sheet(classeur_id, "Distances")]
+        self.distances=[Distance(**p) for p in self.load_data_from_sheet(classeur_id, "Distances")]
+        excludes=[p for p in self.load_data_from_sheet(classeur_id, "Exclude")]
 
-
-        indispo_prof=self.load_data_from_sheet(classeur_id, "DispoProf")
+        dispos_prof=self.load_data_from_sheet(classeur_id, "DispoProf")
         for p in self.professeurs:
             p.dispos.clear()
-            for d in indispo_prof:
+            for d in dispos_prof:
                 if p.Prof_ID==d["Prof_ID"]:
-                    p.dispos.append(self.convert_plage(d))
+                    #print(f"Ajout de la plage {d}")
+                    p.dispos.append(Plage(d))
 
             p.dispos=union(p.dispos)
+            for e in excludes:
+                p.dispos=exclude_from(p.dispos,Plage(e))
+
+            random.shuffle(p.dispos)
 
         dispo_salle = self.load_data_from_sheet(classeur_id, "DispoSalle")
         for s in self.salles:
@@ -141,12 +146,14 @@ class Agenda:
             s.dispos.clear()
             for d in dispo_salle:
                 if s.Salle_ID==d["Salle_ID"]:
-                    s.dispos.append(self.convert_plage(d))
+                    s.dispos.append(Plage(d))
 
             s.dispos = union(s.dispos)
+            random.shuffle(s.dispos)
 
         for c in self.cours:
             c.requirments="" if type(c.requirments)==float else c.requirments
+
 
 
         return {
@@ -178,10 +185,11 @@ class Agenda:
         return random.choice(self.cours)
 
 
-    def check_plage(self,indisponibilite:list,plage:Plage) -> bool:
-        for d in indisponibilite:
-            if not intersection(d,plage) is None:return False
-        return True
+    def check_plage(self,dispos:list,plage:Plage) -> bool:
+        for d in dispos:
+            if d.dtEnd>=plage.dtEnd and d.dtStart<=plage.dtStart:
+                 return True
+        return False
 
 
     def get_profs(self,prof_id=None):
@@ -218,19 +226,13 @@ class Agenda:
         return dispo
 
 
-    def reserve(self,indispos:list[Plage],plage:Plage) -> list[Plage]:
-        for d in indispos:
-            if not intersection(d,plage) is None:
-                raise RuntimeError("Pas de dispo")
-                return indispos
-
-        indispos.append(plage)
-        return indispos
+    def reserve(self,dispos:list[Plage],plage:Plage) -> list[Plage]:
+        return exclude_from(dispos,plage)
 
 
 
 
-    def find_plage_for_duration(self,disponibilite:list, duree:int) -> Plage | None:
+    def find_plage_for_duration(self,disponibilite:list[Plage], duree:int) -> Plage | None:
         """
         cherche une disponiblité et met a jour les dispos suite à réservation
         :param disponibilite:
@@ -240,8 +242,11 @@ class Agenda:
         for _ in range(10000):
             #on tire au sort dans les disponibilite
             d=random.choice(disponibilite)
-            if (d[1]-d[0]).total_seconds()>=duree*3600:
-                return d
+            if (d.dtEnd-d.dtStart).total_seconds()>=duree*3600:
+                if random.choice([0,1])==0:
+                    return Plage(d.dtStart,d.dtStart+datetime.timedelta(hours=duree))
+                else:
+                    return Plage(d.dtEnd-datetime.timedelta(hours=duree),d.dtEnd)
 
         return None
 
@@ -250,43 +255,48 @@ class Agenda:
         pass
 
 
-    def run(self,filename="./planning.xlsx") -> list[Seance] | None:
-        for occ in range(1000):
+    def run(self,filename="./planning.xlsx",max_occ=1000,finder_occ=100000) -> list[Seance] | None:
+        for occ in range(max_occ):
             rc = False
             self.init_listes(filename)
 
             planning = []
             total_cours = len(self.cours)
 
-            for i in range(1000):
+            for i in range(finder_occ):
                 c = self.get_cours()
                 if c is None:
                     rc = True
                     break
 
                 profs = self.get_profs(c.Prof_ID)
-                s = self.get_salle(
-                    min_capacite=self.get_groupe(c.groupe).effectif,
-                    requirments=c.requirments
-                )
+                if self.get_groupe(c.groupe):
+                    s = self.get_salle(
+                        min_capacite=self.get_groupe(c.groupe).effectif,
+                        requirments=c.requirments
+                    )
 
-                #dispo_salles = self.create_disponibilite(s.dispos)
-                plage_seance = self.find_plage_for_duration(s.dispos,c.duree)
-                if plage_seance:
-                    b=True
-                    for p in profs:
-                        if not self.check_plage(p.dispos, plage_seance):
-                            b=False
-                            break
+                    if len(s.dispos)>0:
+                        plage_seance = self.find_plage_for_duration(s.dispos,c.duree)
 
-                    if b:
-                        planning.append(Seance(plage_seance[0], plage_seance[1], s.Salle_ID, p.Prof_ID, c.titre, p.Nom))
-                        s.dispos = a.reserve(s.dispos, plage_seance)
-                        p.dispos = a.reserve(p.dispos, plage_seance)
-                        self.cours.remove(c)
+                        if plage_seance and plage_seance.dtStart>c.minDate and plage_seance.dtEnd<c.maxDate:
+                            b=True
+                            for p in profs:
+                                if not self.check_plage(p.dispos, plage_seance):
+                                    b=False
+                                    break
+
+                            if b:
+                                planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre, c.groupe,p.Nom))
+                                s.dispos = self.reserve(s.dispos, plage_seance)
+                                for p in profs:
+                                    p.dispos = self.reserve(p.dispos, plage_seance)
+                                self.cours.remove(c)
+                else:
+                    raise RuntimeError("Groupe inconnu")
 
             if rc:
-                return(planning)
+                return(self.eval_config(planning))
             else:
                 print(f"Echec de planification {occ} tentatives. {total_cours - len(self.cours)}/{total_cours} planifiés")
 
@@ -313,14 +323,69 @@ class Agenda:
         return rc
 
 
+    def get_distance_between(self,salle1:str,salle2:str):
+        for d in self.distances:
+            if d.Salle_1==salle1 and d.Salle_2==salle2: return d.distance
+        return 0
 
+
+    def eval_config(self, planning:list[Seance]) -> dict:
+        groups=set([s.group for s in planning])
+        distance=0
+        for g in groups:
+            seances=sorted([s for s in planning if s.group==g],key=lambda s: s.plage.dtStart)
+            for idx in range(0,len(seances)-1):
+                if seances[idx].plage.dtStart.day==seances[idx+1].plage.dtStart.day:
+                    distance=distance+self.get_distance_between(seances[idx].salle,seances[idx+1].salle)
+
+        return {"planning":planning,"distance":distance}
+
+
+
+# if __name__ == '__main__':
+#     a=Agenda()
+#     config=a.run(max_occ=200)
+#     if config:
+#         export_planning_to_excel(
+#             filter_plage(config["planning"],datetime.datetime.now(),datetime.datetime.now()+datetime.timedelta(days=30)),
+#             min_hour=8,
+#             max_hour=20
+#         )
+
+
+import concurrent.futures
+
+
+def execute_run(filename, max_occ):
+    # On crée une instance propre à chaque processus
+    agenda_instance = Agenda()
+    return agenda_instance.run(filename=filename, max_occ=max_occ)
 
 if __name__ == '__main__':
-    a=Agenda()
-    planning=a.run()
-    # if planning:
-    #     export_planning_to_excel(
-    #         filter_plage(planning,datetime.datetime.now(),datetime.datetime.now()+datetime.timedelta(days=30)),
-    #         min_hour=8,
-    #         max_hour=20
-    #     )
+    n_executions = 10
+
+    # On utilise ProcessPoolExecutor pour le vrai parallélisme CPU
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        # Création des futurs : on lance 10 fois la méthode run
+        # Note : On passe les arguments nécessaires à run()
+        futures = [executor.submit(execute_run, "./planning.xlsx", 20) for _ in range(n_executions)]
+
+        results = []
+        for future in concurrent.futures.as_completed(futures):
+            config = future.result()
+            if config:
+                results.append(config)
+                print(f"Planification réussie terminée. Distance : {config['distance']}")
+
+
+    # Optionnel : Trier par la meilleure distance (la plus faible)
+    if results:
+        best_config = min(results, key=lambda x: x['distance'])
+        print(f"Meilleure configuration trouvée avec une distance de : {best_config['distance']}")
+
+        export_planning_to_excel(
+            filter_plage(best_config["planning"], datetime.datetime.now(),
+                         datetime.datetime.now() + datetime.timedelta(days=60)),
+            min_hour=8,
+            max_hour=20
+        )

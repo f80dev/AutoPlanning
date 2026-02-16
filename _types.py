@@ -3,36 +3,6 @@ from dataclasses import dataclass, field
 
 from tools import strtodate
 
-
-
-
-@dataclass
-class Cours:
-    duree:int
-    titre:str
-    groupe:str
-    Prof_ID:str
-    requirments:str=""
-
-@dataclass
-class Professeur:
-    Prof_ID:str
-    Nom:str
-    dispos:list=field(default_factory=list)
-
-
-@dataclass
-class Salle:
-    Salle_ID:str
-    capacite: int
-    dispos:list=field(default_factory=list)
-    tags: str = ""
-
-@dataclass
-class Groupe:
-    Groupe_ID:str
-    effectif: int
-
 class Plage:
     dtStart:datetime.datetime
     dtEnd:datetime.datetime
@@ -61,11 +31,52 @@ class Plage:
 
 
 @dataclass
+class Distance:
+    Salle_1:str
+    Salle_2:str
+    distance:int
+
+
+@dataclass
+class Cours:
+    duree:int
+    titre:str
+    groupe:str
+    minDate:datetime.datetime
+    maxDate:datetime.datetime
+    Prof_ID:str
+    nb_prof:int
+    requirments:str=""
+
+@dataclass
+class Professeur:
+    Prof_ID:str
+    Nom:str
+    dispos:list[Plage]=field(default_factory=list[Plage])
+
+
+@dataclass
+class Salle:
+    Salle_ID:str
+    capacite: int
+    dispos:list[Plage]=field(default_factory=list[Plage])
+    tags: str = ""
+
+@dataclass
+class Groupe:
+    Groupe_ID:str
+    effectif: int
+    professeur:str=""
+
+
+
+@dataclass
 class Seance:
     plage: Plage
     salle: str
     Prof_ID: str
     titre: str
+    group:str
     Nom_Prof: str
 
     def __repr__(self):
@@ -79,3 +90,58 @@ def intersection(p1: Plage, p2: Plage) -> Plage | None:
         return Plage(rc[0],rc[1])
     else:
         return None
+
+
+def union(periodes:list[Plage]) -> list[Plage]:
+    if not periodes:return []
+
+    # 1. Trier les périodes par date de début
+    periodes_triees = sorted(periodes, key=lambda x: x.dtStart)
+
+    fusionnees = []
+
+    # 2. Initialiser avec la première période
+    (debut_actuel,fin_actuelle) = periodes_triees[0].dtStart,periodes_triees[0].dtEnd
+
+    for i in range(1, len(periodes_triees)):
+        prochain_debut, prochaine_fin = periodes_triees[i].dtStart,periodes_triees[i].dtEnd
+
+        # Si le début de la période suivante est avant ou égal à la fin de l'actuelle
+        if prochain_debut <= fin_actuelle:
+            # On fusionne en prenant la fin la plus éloignée
+            fin_actuelle = max(fin_actuelle, prochaine_fin)
+        else:
+            # Pas de chevauchement, on ajoute la période précédente et on bascule
+            fusionnees.append(Plage(debut_actuel, fin_actuelle))
+            debut_actuel, fin_actuelle = prochain_debut, prochaine_fin
+
+    # Ajouter la dernière période traitée
+    fusionnees.append(Plage(debut_actuel, fin_actuelle))
+
+    return fusionnees
+
+def exclude_from(dispos:list[Plage],indispo:Plage):
+    rc=[]
+    for d in dispos:
+        if intersection(d,indispo) is None:
+            rc.append(d)
+        else:
+            if indispo.dtStart < d.dtStart and indispo.dtEnd > d.dtEnd:
+                #la plage disparait du fait de l'indispo
+                pass
+            else:
+                if indispo.dtStart>d.dtStart and indispo.dtEnd<=d.dtEnd:
+                    #la plage d'indispo est incluse dans la plage de dispo
+                    rc.append(Plage(d.dtStart,indispo.dtStart))
+                    rc.append(Plage(d.dtEnd,indispo.dtEnd))
+                else:
+                    if indispo.dtStart<d.dtStart:
+                        #la plage d'indispo commence avant la plage de dispo
+                        rc.append(Plage(indispo.dtEnd,d.dtEnd))
+                    else:
+                        #la plage d'indispo commence après la plage de dispo
+                        rc.append(Plage(d.dtStart,indispo.dtStart))
+    return rc
+
+
+

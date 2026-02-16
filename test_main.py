@@ -15,6 +15,10 @@ def test_init_liste():
     a=Agenda()
     a.init_listes(classeur_id ="./planning.xlsx" )
 
+def test_run():
+    a=Agenda()
+    a.run("./planning.xlsx")
+
 
 def test_create_dispo():
     l=[
