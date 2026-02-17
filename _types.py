@@ -78,11 +78,16 @@ class Seance:
     titre: str
     group:str
     Nom_Prof: str
+    tags: str = ""
 
     def __repr__(self):
         return f"Seance(dtStart='{self.dtStart}', dtEnd='{self.dtEnd}', salle='{self.salle}', Prof_ID='{self.Prof_ID}')"
 
 
+@dataclass
+class Config:
+    planning:list[Seance]
+    distance:int=0
 
 def intersection(p1: Plage, p2: Plage) -> Plage | None:
     rc = (max(p1.dtStart, p2.dtStart), min(p1.dtEnd, p2.dtEnd))

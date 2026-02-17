@@ -5,8 +5,9 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import pandas as pd
 
-from _types import Salle, Professeur, Seance, Cours, Groupe, Plage, intersection, union, exclude_from, Distance
+from _types import Salle, Professeur, Seance, Cours, Groupe, Plage, intersection, union, exclude_from, Distance, Config
 from export import export_planning_to_excel
+from tools import strtodate
 
 
 def filter_plage(seances:list[Seance],dtStart:datetime,dtEnd:datetime):
@@ -255,7 +256,7 @@ class Agenda:
         pass
 
 
-    def run(self,filename="./planning.xlsx",max_occ=1000,finder_occ=100000) -> list[Seance] | None:
+    def run(self,filename="./planning.xlsx",max_occ=1000,finder_occ=100000) -> Config | None:
         for occ in range(max_occ):
             rc = False
             self.init_listes(filename)
@@ -279,7 +280,7 @@ class Agenda:
                     if len(s.dispos)>0:
                         plage_seance = self.find_plage_for_duration(s.dispos,c.duree)
 
-                        if plage_seance and plage_seance.dtStart>c.minDate and plage_seance.dtEnd<c.maxDate:
+                        if plage_seance and plage_seance.dtStart>strtodate(c.minDate) and plage_seance.dtEnd<strtodate(c.maxDate):
                             b=True
                             for p in profs:
                                 if not self.check_plage(p.dispos, plage_seance):
@@ -292,11 +293,13 @@ class Agenda:
                                 for p in profs:
                                     p.dispos = self.reserve(p.dispos, plage_seance)
                                 self.cours.remove(c)
+                        # else:
+                        #     print("Programmation hors plage")
                 else:
                     raise RuntimeError("Groupe inconnu")
 
             if rc:
-                return(self.eval_config(planning))
+                return self.eval_config(planning)
             else:
                 print(f"Echec de planification {occ} tentatives. {total_cours - len(self.cours)}/{total_cours} planifiés")
 
@@ -329,7 +332,7 @@ class Agenda:
         return 0
 
 
-    def eval_config(self, planning:list[Seance]) -> dict:
+    def eval_config(self, planning:list[Seance]) -> Config:
         groups=set([s.group for s in planning])
         distance=0
         for g in groups:
@@ -338,7 +341,7 @@ class Agenda:
                 if seances[idx].plage.dtStart.day==seances[idx+1].plage.dtStart.day:
                     distance=distance+self.get_distance_between(seances[idx].salle,seances[idx+1].salle)
 
-        return {"planning":planning,"distance":distance}
+        return Config(planning,distance)
 
 
 

@@ -12,6 +12,7 @@ def strtodate(dt:str) -> datetime :
     if type(dt)==datetime: return dt
     if type(dt) == pd.Timestamp: return dt.to_pydatetime()
     dt = dt.replace("  ", " ").replace(" ", "/2026 ")
+    if not " " in dt: dt=dt+" 00:00"
     return datetime.strptime(dt, "%d/%m/%Y %H:%M")
 
 
