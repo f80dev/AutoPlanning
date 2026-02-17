@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 
 from tools import strtodate
 
+@dataclass
 class Plage:
     dtStart:datetime.datetime
     dtEnd:datetime.datetime
@@ -28,6 +29,13 @@ class Plage:
             return self.dtStart.strftime("%d/%m/%Y")+" "+self.dtStart.strftime("%H:%M")+" > "+self.dtEnd.strftime("%H:%M")
         else:
             return self.dtStart.strftime("%d/%m/%Y %H:%M")+" > "+self.dtEnd.strftime("%d/%m/%Y %H:%M")
+
+    def to_dict(self):
+        return {
+            "dtStart": self.dtStart.isoformat(),
+            "dtEnd": self.dtEnd.isoformat()
+        }
+
 
 
 @dataclass

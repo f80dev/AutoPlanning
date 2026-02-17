@@ -1,5 +1,7 @@
+from dataclasses import asdict
+
 import pytz
-from flask import Flask, Response, request
+from flask import Flask, Response, request, jsonify
 from icalendar import Calendar, Event
 from datetime import datetime, timedelta
 
@@ -7,6 +9,16 @@ from main import Agenda
 
 app = Flask(__name__)
 planning = Agenda().run()
+
+
+@app.route("/calendar/json", methods=['GET'])
+def get_filtered_json():
+    """
+    Test : http://127.0.0.1:5000/calendar/json?tags=tag1,tag2
+    :return:
+    """
+    tags_from_list = request.args.getlist('tags')
+    return jsonify([asdict(entry) for entry in planning.planning])
 
 
 @app.route("/calendar/export.ics", methods=['GET'])
