@@ -244,7 +244,7 @@ class Agenda:
             #on tire au sort dans les disponibilite
             d=random.choice(disponibilite)
             if (d.dtEnd-d.dtStart).total_seconds()>=duree*3600:
-                if random.choice([0,1])==0:
+                if random.choice([0,1,2])>0:
                     return Plage(d.dtStart,d.dtStart+datetime.timedelta(hours=duree))
                 else:
                     return Plage(d.dtEnd-datetime.timedelta(hours=duree),d.dtEnd)
@@ -288,7 +288,7 @@ class Agenda:
                                     break
 
                             if b:
-                                planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre, c.groupe,p.Nom))
+                                planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre,c.props, c.groupe,p.Nom))
                                 s.dispos = self.reserve(s.dispos, plage_seance)
                                 for p in profs:
                                     p.dispos = self.reserve(p.dispos, plage_seance)
@@ -378,16 +378,16 @@ if __name__ == '__main__':
             config = future.result()
             if config:
                 results.append(config)
-                print(f"Planification réussie terminée. Distance : {config['distance']}")
+                print(f"Planification réussie terminée. Distance : {config.distance}")
 
 
     # Optionnel : Trier par la meilleure distance (la plus faible)
     if results:
-        best_config = min(results, key=lambda x: x['distance'])
-        print(f"Meilleure configuration trouvée avec une distance de : {best_config['distance']}")
+        best_config = min(results, key=lambda x: x.distance)
+        print(f"Meilleure configuration trouvée avec une distance de : {best_config.distance}")
 
         export_planning_to_excel(
-            filter_plage(best_config["planning"], datetime.datetime.now(),
+            filter_plage(best_config.planning, datetime.datetime.now(),
                          datetime.datetime.now() + datetime.timedelta(days=60)),
             min_hour=8,
             max_hour=20

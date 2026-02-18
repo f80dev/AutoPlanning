@@ -3,7 +3,6 @@ from dataclasses import asdict
 import pytz
 from flask import Flask, Response, request, jsonify
 from icalendar import Calendar, Event
-from datetime import datetime, timedelta
 
 from main import Agenda
 
