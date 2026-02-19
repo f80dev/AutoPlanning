@@ -56,6 +56,7 @@ class Cours:
     props:str
     nb_prof:int
     requirments:str=""
+    tags: str = ""
 
 @dataclass
 class Professeur:

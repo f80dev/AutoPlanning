@@ -15,7 +15,6 @@ def filter_plage(seances:list[Seance],dtStart:datetime,dtEnd:datetime):
 
 
 class Agenda:
-
     salles:list[Salle]=[]
     professeurs:list[Professeur]=[]
     cours:list[Cours]=[]
@@ -155,8 +154,6 @@ class Agenda:
         for c in self.cours:
             c.requirments="" if type(c.requirments)==float else c.requirments
 
-
-
         return {
             "professeurs":self.professeurs,
             "cours":self.cours,
@@ -288,7 +285,7 @@ class Agenda:
                                     break
 
                             if b:
-                                planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre,c.props, c.groupe,p.Nom))
+                                planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre,c.props, c.groupe,p.Nom,c.tags))
                                 s.dispos = self.reserve(s.dispos, plage_seance)
                                 for p in profs:
                                     p.dispos = self.reserve(p.dispos, plage_seance)
@@ -365,7 +362,7 @@ def execute_run(filename, max_occ):
     return agenda_instance.run(filename=filename, max_occ=max_occ)
 
 if __name__ == '__main__':
-    n_executions = 10
+    n_executions = 20
 
     # On utilise ProcessPoolExecutor pour le vrai parallélisme CPU
     with concurrent.futures.ProcessPoolExecutor() as executor:
