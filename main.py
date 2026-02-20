@@ -285,7 +285,13 @@ class Agenda:
                                     break
 
                             if b:
-                                planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre,c.props, c.groupe,p.Nom,c.tags))
+                                props={"prop_1":c.prop_1,"prop_2":c.prop_2,"prop_3":c.prop_3,"prop_4":c.prop_4,"prop_5":c.prop_5}
+                                for k in props:
+                                    if type(props[k])==float: props[k]=""
+
+                                planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre,
+                                                       props,
+                                                       c.groupe,p.Nom,c.tags))
                                 s.dispos = self.reserve(s.dispos, plage_seance)
                                 for p in profs:
                                     p.dispos = self.reserve(p.dispos, plage_seance)
@@ -301,6 +307,8 @@ class Agenda:
                 print(f"Echec de planification {occ} tentatives. {total_cours - len(self.cours)}/{total_cours} planifiés")
 
         return None
+
+
 
     def add_night_to_indisponibilite(self,indisponibilite:list[Plage],
                                      dtStart:datetime.datetime,dtEnd:datetime.datetime,

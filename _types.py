@@ -53,7 +53,11 @@ class Cours:
     minDate:datetime.datetime
     maxDate:datetime.datetime
     Prof_ID:str
-    props:str
+    prop_1:str
+    prop_2:str
+    prop_3:str
+    prop_4:str
+    prop_5:str
     nb_prof:int
     requirments:str=""
     tags: str = ""
@@ -86,7 +90,7 @@ class Seance:
     salle: str
     Prof_ID: str
     titre: str
-    props:str
+    props:dict
     group:str
     Nom_Prof: str
     tags: str = ""
