@@ -45,22 +45,36 @@ class Distance:
     distance:int
 
 
-@dataclass
 class Cours:
-    duree:int
-    titre:str
-    groupe:str
-    minDate:datetime.datetime
-    maxDate:datetime.datetime
-    Prof_ID:str
-    prop_1:str
-    prop_2:str
-    prop_3:str
-    prop_4:str
-    prop_5:str
-    nb_prof:int
+    duree=2
+    titre=""
+    groupe=""
+    minDate:datetime.datetime=datetime.datetime.now()
+    maxDate:datetime.datetime=datetime.datetime.now()+datetime.timedelta(days=30)
+    Prof_ID:str=""
+    props={}
+    nb_prof:int=0
     requirments:str=""
-    tags: str = ""
+
+    def __init__(self,d:dict):
+        self.duree=d["duree"]
+        self.titre=d["titre"]
+        self.groupe=d["groupe"]
+        self.minDate=strtodate(d["minDate"])
+        self.maxDate=strtodate(d["maxDate"])
+        self.Prof_ID=d["Prof_ID"]
+
+        props=dict()
+        for k in d:
+            if k.startswith("p_"):
+                props[k.split("p_")[1]]=d[k]
+        self.props=props
+
+        self.nb_prof=d["nb_prof"]
+        self.requirments=d["requirments"]
+
+
+
 
 @dataclass
 class Professeur:
@@ -93,7 +107,6 @@ class Seance:
     props:dict
     group:str
     Nom_Prof: str
-    tags: str = ""
 
     def __repr__(self):
         return f"Seance(dtStart='{self.dtStart}', dtEnd='{self.dtEnd}', salle='{self.salle}', Prof_ID='{self.Prof_ID}')"

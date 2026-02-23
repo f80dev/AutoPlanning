@@ -1,10 +1,35 @@
 import datetime
+import json
+from dataclasses import asdict
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 from _types import Seance
+
+def custom_serializer(obj):
+    if isinstance(obj, (datetime.date, datetime.datetime)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+
+
+
+def export_planning_to_json(planning: list[Seance], filename: str = "planning_output.json"):
+    if not planning:
+        print("Le planning est vide, aucun fichier n'a été généré.")
+        return
+
+    data = [asdict(s) for s in planning]
+
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False, default=custom_serializer)
+    print(f"Le planning a été exporté avec succès dans '{filename}'")
+
+
+
+
 
 
 def export_planning_to_excel(planning: list[Seance], filename: str = "planning_output.xlsx", min_hour: int = 0,

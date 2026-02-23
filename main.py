@@ -6,7 +6,7 @@ from googleapiclient.errors import HttpError
 import pandas as pd
 
 from _types import Salle, Professeur, Seance, Cours, Groupe, Plage, intersection, union, exclude_from, Distance, Config
-from export import export_planning_to_excel
+from export import export_planning_to_excel, export_planning_to_json
 from tools import strtodate
 
 
@@ -120,7 +120,7 @@ class Agenda:
     #"1e7wdfc2brpNwbefhA9dJXx81zs93bGpRM_Th_eiHwBI"
     def init_listes(self,classeur_id ="./planning.xlsx" ):
         self.professeurs = [Professeur(**p) for p in self.load_data_from_sheet(classeur_id, "Professeurs")]
-        self.cours = [Cours(**p) for p in self.load_data_from_sheet(classeur_id, "Cours")]
+        self.cours = [Cours(p) for p in self.load_data_from_sheet(classeur_id, "Cours")]
         self.salles = [Salle(**p) for p in self.load_data_from_sheet(classeur_id, "Salles")]
         self.groupes = [Groupe(**p) for p in self.load_data_from_sheet(classeur_id, "Groupes")]
         self.distances=[Distance(**p) for p in self.load_data_from_sheet(classeur_id, "Distances")]
@@ -285,13 +285,12 @@ class Agenda:
                                     break
 
                             if b:
-                                props={"prop_1":c.prop_1,"prop_2":c.prop_2,"prop_3":c.prop_3,"prop_4":c.prop_4,"prop_5":c.prop_5}
-                                for k in props:
-                                    if type(props[k])==float: props[k]=""
+                                for k in c.props:
+                                    if type(c.props[k])==float: c.props[k]=""
 
                                 planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre,
-                                                       props,
-                                                       c.groupe,p.Nom,c.tags))
+                                                       c.props,
+                                                       c.groupe,p.Nom))
                                 s.dispos = self.reserve(s.dispos, plage_seance)
                                 for p in profs:
                                     p.dispos = self.reserve(p.dispos, plage_seance)
@@ -391,9 +390,15 @@ if __name__ == '__main__':
         best_config = min(results, key=lambda x: x.distance)
         print(f"Meilleure configuration trouvée avec une distance de : {best_config.distance}")
 
-        export_planning_to_excel(
-            filter_plage(best_config.planning, datetime.datetime.now(),
-                         datetime.datetime.now() + datetime.timedelta(days=60)),
-            min_hour=8,
-            max_hour=20
+        # export_planning_to_excel(
+        #     filter_plage(best_config.planning, datetime.datetime.now(),
+        #                  datetime.datetime.now() + datetime.timedelta(days=60)),
+        #     min_hour=8,
+        #     max_hour=20
+        # )
+
+        export_planning_to_json(
+            filter_plage(best_config.planning, datetime.datetime.fromisoformat("2026-01-01"),
+                         datetime.datetime.fromisoformat("2026-12-31"))
         )
+

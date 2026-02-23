@@ -1,13 +1,21 @@
+import json
 from dataclasses import asdict
+from datetime import datetime, date
 
 import pytz
-from flask import Flask, Response, request, jsonify
+from flask import Flask, Response, request
 from icalendar import Calendar, Event
 
 from main import Agenda
 
 app = Flask(__name__)
 planning = Agenda().run()
+
+
+def custom_serializer(obj):
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 
 @app.route("/calendar/json", methods=['GET'])
@@ -17,7 +25,21 @@ def get_filtered_json():
     :return:
     """
     tags_from_list = request.args.getlist('tags')
-    return jsonify([asdict(entry) for entry in planning.planning])
+    tags = []
+    if tags_from_list:
+        tags = [tag.strip() for item in tags_from_list for tag in item.split(',')]
+
+    filtered_planning = []
+    for entry in planning.planning:
+        # Logique de filtrage : on garde l'événement si un des tags correspond
+        # ou si aucun tag n'est spécifié (comportement par défaut)
+        if not tags or any(tag in entry.tags for tag in tags):
+            filtered_planning.append(asdict(entry))
+
+    return Response(
+        json.dumps(filtered_planning, default=custom_serializer, ensure_ascii=False),
+        mimetype="application/json"
+    )
 
 
 @app.route("/calendar/export.ics", methods=['GET'])
@@ -42,11 +64,11 @@ def get_filtered_ics():
             event = Event()
             event.add('summary', entry.titre)
             event.add('dtstart', entry.plage.dtStart.astimezone(pytz.utc))
-            event.add('dtend', entry.plage.dtStart.astimezone(pytz.utc))
+            event.add('dtend', entry.plage.dtEnd.astimezone(pytz.utc))
             event.add('uid', f"event-{entry.titre}@mon-api.com")
 
             # Optionnel : ajouter les tags dans la description ICS
-            event.add('description', f"Tags: {entry.titre}")
+            event.add('description', f"Tags: {entry.tags}")
 
             cal.add_component(event)
 
