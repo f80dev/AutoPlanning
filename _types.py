@@ -1,5 +1,6 @@
 import datetime
 from dataclasses import dataclass, field
+from random import Random
 
 from tools import strtodate
 
@@ -22,6 +23,14 @@ class Plage:
 
         self.dtStart=strtodate(dtStart)
         self.dtEnd=strtodate(dtEnd)
+
+
+    def duration(self):
+        return (self.dtEnd-self.dtStart).total_seconds()/3600
+
+
+    def contient(self,pl):
+        return self.dtStart<=pl.dtStart and self.dtEnd>=pl.dtEnd
 
 
     def __str__(self):
@@ -125,6 +134,8 @@ def intersection(p1: Plage, p2: Plage) -> Plage | None:
         return None
 
 
+
+
 def union(periodes:list[Plage]) -> list[Plage]:
     if not periodes:return []
 
@@ -153,27 +164,17 @@ def union(periodes:list[Plage]) -> list[Plage]:
 
     return fusionnees
 
-def exclude_from(dispos:list[Plage],indispo:Plage):
+def exclude_from(dispos:list[Plage],to_reserve:Plage):
+    assert to_reserve.duration()<20
     rc=[]
+    b=False
     for d in dispos:
-        if intersection(d,indispo) is None:
-            rc.append(d)
+        if not b and intersection(d,to_reserve)==to_reserve:
+            rc.append(Plage(d.dtStart,to_reserve.dtStart))
+            rc.append(Plage(d.dtEnd,to_reserve.dtEnd))
+            b=True
         else:
-            if indispo.dtStart < d.dtStart and indispo.dtEnd > d.dtEnd:
-                #la plage disparait du fait de l'indispo
-                pass
-            else:
-                if indispo.dtStart>d.dtStart and indispo.dtEnd<=d.dtEnd:
-                    #la plage d'indispo est incluse dans la plage de dispo
-                    rc.append(Plage(d.dtStart,indispo.dtStart))
-                    rc.append(Plage(d.dtEnd,indispo.dtEnd))
-                else:
-                    if indispo.dtStart<d.dtStart:
-                        #la plage d'indispo commence avant la plage de dispo
-                        rc.append(Plage(indispo.dtEnd,d.dtEnd))
-                    else:
-                        #la plage d'indispo commence après la plage de dispo
-                        rc.append(Plage(d.dtStart,indispo.dtStart))
+            rc.append(d)
     return rc
 
 

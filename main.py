@@ -14,6 +14,27 @@ def filter_plage(seances:list[Seance],dtStart:datetime,dtEnd:datetime):
     return [s for s in seances if s.plage.dtStart>=dtStart and s.plage.dtEnd<=dtEnd]
 
 
+def convert_recurence_to_plage(recurence:str,periode_recurence=600,open_time=8,close_time=20,end_morning=12,open_afternoon=14) -> list[Plage]:
+    recurence=recurence.lower()
+    dt=datetime.datetime.now()
+    rc=[]
+    for i in range(periode_recurence):
+        if recurence=="week" or recurence=="semaine":
+            rc.append(Plage(dt.replace(hour=open_time),dt.replace(hour=close_time)))
+        else:
+            idx_day = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"].index(recurence.split(" ")[0])
+            if dt.day==idx_day:
+                if not " " in recurence:
+                    rc.append(Plage(dt.replace(hour=open_time),dt.replace(hour=close_time)))
+                else:
+                    if ("am" in recurence) or ("matin" in recurence):
+                        rc.append(Plage(dt.replace(hour=open_time),dt.replace(hour=end_morning)))
+                    else:
+                        rc.append(Plage(dt.replace(hour=open_afternoon),dt.replace(hour=close_time)))
+        dt=dt+datetime.timedelta(days=1)
+    return rc
+
+
 class Agenda:
     salles:list[Salle]=[]
     professeurs:list[Professeur]=[]
@@ -118,13 +139,13 @@ class Agenda:
 
 
     #"1e7wdfc2brpNwbefhA9dJXx81zs93bGpRM_Th_eiHwBI"
-    def init_listes(self,classeur_id ="./planning.xlsx" ):
+    def init_listes(self,classeur_id ="./planning.xlsx",periode_recurence=300 ):
         self.professeurs = [Professeur(**p) for p in self.load_data_from_sheet(classeur_id, "Professeurs")]
         self.cours = [Cours(p) for p in self.load_data_from_sheet(classeur_id, "Cours")]
         self.salles = [Salle(**p) for p in self.load_data_from_sheet(classeur_id, "Salles")]
         self.groupes = [Groupe(**p) for p in self.load_data_from_sheet(classeur_id, "Groupes")]
         self.distances=[Distance(**p) for p in self.load_data_from_sheet(classeur_id, "Distances")]
-        excludes=[p for p in self.load_data_from_sheet(classeur_id, "Exclude")]
+        #excludes=[p for p in self.load_data_from_sheet(classeur_id, "Exclude")]
 
         dispos_prof=self.load_data_from_sheet(classeur_id, "DispoProf")
         for p in self.professeurs:
@@ -132,11 +153,14 @@ class Agenda:
             for d in dispos_prof:
                 if p.Prof_ID==d["Prof_ID"]:
                     #print(f"Ajout de la plage {d}")
-                    p.dispos.append(Plage(d))
+                    if type(d["Recurence"])!=float:
+                        p.dispos=p.dispos+convert_recurence_to_plage(d["Recurence"],periode_recurence)
+                    else:
+                        p.dispos.append(Plage(d))
 
             p.dispos=union(p.dispos)
-            for e in excludes:
-                p.dispos=exclude_from(p.dispos,Plage(e))
+            # for e in excludes:
+            #     p.dispos=exclude_from(p.dispos,Plage(e))
 
             random.shuffle(p.dispos)
 
@@ -146,7 +170,11 @@ class Agenda:
             s.dispos.clear()
             for d in dispo_salle:
                 if s.Salle_ID==d["Salle_ID"]:
-                    s.dispos.append(Plage(d))
+                    if type(d["Recurence"]) != float:
+                        s.dispos = s.dispos + convert_recurence_to_plage(d["Recurence"], periode_recurence)
+                    else:
+                        s.dispos.append(Plage(d))
+
 
             s.dispos = union(s.dispos)
             random.shuffle(s.dispos)
@@ -178,9 +206,13 @@ class Agenda:
 
 
 
-    def get_cours(self) -> Cours | None:
+    def get_cours(self,index=-1) -> Cours | None:
         if len(self.cours)==0: return None
-        return random.choice(self.cours)
+        if index>0:
+            #TODO a vérifier
+            return sorted(self.cours,key=lambda x: x.duree,reverse=True)[index]
+        else:
+            return random.choice(self.cours)
 
 
     def check_plage(self,dispos:list,plage:Plage) -> bool:
@@ -225,6 +257,7 @@ class Agenda:
 
 
     def reserve(self,dispos:list[Plage],plage:Plage) -> list[Plage]:
+        random.shuffle(dispos)
         return exclude_from(dispos,plage)
 
 
@@ -256,7 +289,7 @@ class Agenda:
     def run(self,filename="./planning.xlsx",max_occ=1000,finder_occ=100000) -> Config | None:
         for occ in range(max_occ):
             rc = False
-            self.init_listes(filename)
+            self.init_listes(filename,periode_recurence=50)
 
             planning = []
             total_cours = len(self.cours)
