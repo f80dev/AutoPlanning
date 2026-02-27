@@ -115,7 +115,7 @@ class Seance:
     titre: str
     props:dict
     group:str
-    Nom_Prof: str
+    #Nom_Prof: str
 
     def __repr__(self):
         return f"Seance(dtStart='{self.dtStart}', dtEnd='{self.dtEnd}', salle='{self.salle}', Prof_ID='{self.Prof_ID}')"
@@ -134,6 +134,43 @@ def intersection(p1: Plage, p2: Plage) -> Plage | None:
         return None
 
 
+def soustraction(A: Plage, B: Plage) -> list[Plage]:
+    """
+    Soustrait la plage B de la plage A (A - B).
+    Retourne une liste de 0, 1 ou 2 objets Plage.
+    """
+    # 1. Cas où il n'y a aucun chevauchement
+    if B.dtStart >= A.dtEnd or B.dtEnd <= A.dtStart:
+        return [A]
+
+    # 2. Cas où B englobe totalement A (A devient vide)
+    if B.dtStart <= A.dtStart and B.dtEnd >= A.dtEnd:
+        return []
+
+    resultats = []
+
+    # 3. Segment restant au début (si B commence après A)
+    if B.dtStart > A.dtStart:
+        resultats.append(Plage(A.dtStart, B.dtStart))
+
+    # 4. Segment restant à la fin (si B finit avant A)
+    if B.dtEnd < A.dtEnd:
+        resultats.append(Plage(B.dtEnd, A.dtEnd))
+
+    return resultats
+
+
+def check_plage(pl:list[Plage]):
+    for p in pl:
+        print(f"Analyse de la plage {p}")
+        if p.dtStart.weekday()==6 or p.dtEnd.weekday()==6 or p.dtStart.weekday()==5 or p.dtEnd.weekday()==5:
+            raise RuntimeError(f"La plage {p} est sur un wekkend")
+
+        if p.dtStart.minute!=0 or p.dtEnd.minute!=0:
+            raise RuntimeError(f"La plage {p} est incorrecte")
+
+    if len(union(pl))<len(pl):
+        raise RuntimeError(f"Liste de plages non fusionnées")
 
 
 def union(periodes:list[Plage]) -> list[Plage]:
@@ -163,19 +200,5 @@ def union(periodes:list[Plage]) -> list[Plage]:
     fusionnees.append(Plage(debut_actuel, fin_actuelle))
 
     return fusionnees
-
-def exclude_from(dispos:list[Plage],to_reserve:Plage):
-    assert to_reserve.duration()<20
-    rc=[]
-    b=False
-    for d in dispos:
-        if not b and intersection(d,to_reserve)==to_reserve:
-            rc.append(Plage(d.dtStart,to_reserve.dtStart))
-            rc.append(Plage(d.dtEnd,to_reserve.dtEnd))
-            b=True
-        else:
-            rc.append(d)
-    return rc
-
 
 

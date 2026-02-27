@@ -6,7 +6,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
-from _types import Seance
+from _types import Seance, Plage
+
 
 def custom_serializer(obj):
     if isinstance(obj, (datetime.date, datetime.datetime)):
@@ -29,6 +30,26 @@ def export_planning_to_json(planning: list[Seance], filename: str = "planning_ou
 
 
 
+
+def export_plages_to_json(planning: list[Plage], filename: str = "planning_output.json",titre="Plage"):
+    if not planning:
+        print("Le planning est vide, aucun fichier n'a été généré.")
+        return
+
+    data=[]
+    for i,p in enumerate(planning):
+        d={
+            "Prof_ID":"",
+            "titre":titre+str(i),
+            "props":{},
+            "group":"",
+            "plage":p
+        }
+        data.append(d)
+
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False, default=custom_serializer)
+    print(f"Le planning a été exporté avec succès dans '{filename}'")
 
 
 
