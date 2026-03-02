@@ -2,7 +2,8 @@ import datetime
 from dataclasses import dataclass, field
 from random import Random
 
-from tools import strtodate
+from tools import strtodate, get_idx_day_of_string
+
 
 @dataclass
 class Plage:
@@ -23,6 +24,7 @@ class Plage:
 
         self.dtStart=strtodate(dtStart)
         self.dtEnd=strtodate(dtEnd)
+        assert self.dtStart <= self.dtEnd
 
 
     def duration(self):
@@ -45,6 +47,18 @@ class Plage:
             "dtEnd": self.dtEnd.isoformat()
         }
 
+    def requirment_day(self, contrainte:str) -> bool:
+        if contrainte is None or len(contrainte)==0 or contrainte=="semaine": return True
+        d=self.dtStart.day
+        contrainte=contrainte.lower().split(" ")
+        idx_day=get_idx_day_of_string(contrainte[0])
+        if d!=idx_day: return False
+        if len(contrainte)==2:
+            if contrainte[1]=="am" and (self.dtStart.hour>12 or self.dtEnd.hour>12): return False
+            if contrainte[1]=="pm" and (self.dtStart.hour<12 or self.dtEnd.hour<12): return False
+        return True
+
+
 
 
 @dataclass
@@ -62,8 +76,12 @@ class Cours:
     maxDate:datetime.datetime=datetime.datetime.now()+datetime.timedelta(days=30)
     Prof_ID:str=""
     props={}
-    nb_prof:int=0
     requirments:str=""
+    forces={}
+    priorite=1
+
+    def __str__(self):
+        return f"Cours {self.titre} - de {Plage(self.minDate,self.maxDate)} avec {self.Prof_ID}"
 
     def __init__(self,d:dict):
         self.duree=d["duree"]
@@ -74,12 +92,17 @@ class Cours:
         self.Prof_ID=d["Prof_ID"]
 
         props=dict()
+        forces=dict()
         for k in d:
             if k.startswith("p_"):
-                props[k.split("p_")[1]]=d[k]
-        self.props=props
+                props[k.split("p_")[1]]=d[k] if type(d[k])!=float else ""
 
-        self.nb_prof=d["nb_prof"]
+            if k.startswith("c_"):
+                forces[k.split("c_")[1]]=d[k].split(",") if type(d[k])==str else []
+
+        self.props=props
+        self.forces=forces
+
         self.requirments=d["requirments"]
 
 
@@ -98,6 +121,9 @@ class Salle:
     capacite: int
     dispos:list[Plage]=field(default_factory=list[Plage])
     tags: str = ""
+
+
+
 
 @dataclass
 class Groupe:
@@ -125,6 +151,20 @@ class Seance:
 class Config:
     planning:list[Seance]
     distance:int=0
+    reliquat:list[Cours]=field(default_factory=list[Cours])
+    result:bool=False
+    log:str=""
+
+    def __str__(self):
+        rc=""
+        sorted(self.reliquat, key=lambda x: x.titre)
+        for c in self.reliquat:
+            rc=rc+f"\ncours problématiques {c}"
+
+        rc=rc+f"\n\nJournal d'incident {self.log}"
+        return rc
+
+
 
 def intersection(p1: Plage, p2: Plage) -> Plage | None:
     rc = (max(p1.dtStart, p2.dtStart), min(p1.dtEnd, p2.dtEnd))
@@ -149,6 +189,7 @@ def soustraction(A: Plage, B: Plage) -> list[Plage]:
 
     resultats = []
 
+
     # 3. Segment restant au début (si B commence après A)
     if B.dtStart > A.dtStart:
         resultats.append(Plage(A.dtStart, B.dtStart))
@@ -160,9 +201,11 @@ def soustraction(A: Plage, B: Plage) -> list[Plage]:
     return resultats
 
 
+
+
 def check_plage(pl:list[Plage]):
     for p in pl:
-        print(f"Analyse de la plage {p}")
+        #print(f"Analyse de la plage {p}")
         if p.dtStart.weekday()==6 or p.dtEnd.weekday()==6 or p.dtStart.weekday()==5 or p.dtEnd.weekday()==5:
             raise RuntimeError(f"La plage {p} est sur un wekkend")
 
