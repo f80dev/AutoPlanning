@@ -9,7 +9,7 @@ def test_init_liste():
 
 def test_run():
     a=Agenda()
-    config=a.run("./planning.xlsm",max_occ=10,finder_occ=10000,log=True)
+    config=a.run("./planning.xlsm",max_occ=100,finder_occ=10000,log=True)
     print(f"{config}")
 
 

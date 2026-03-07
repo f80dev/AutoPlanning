@@ -309,7 +309,7 @@ class Agenda:
         pass
         #TODO ici ne plus prendre aux hasard et balayé toutes les possibilités
 
-    def run(self,filename="./planning.xlsm",max_occ=10,finder_occ=100000,log=False,start_agenda=None) -> Config | None:
+    def run(self,filename="./planning.xlsm",max_occ=10000,finder_occ=100000,log=False,start_agenda=None) -> Config | None:
         reliquats=[]
         for occ in range(max_occ):
             rc = False
@@ -345,7 +345,7 @@ class Agenda:
                         break
 
                     if s and len(s.dispos)>0:
-                        check_plage(s.dispos)
+                        #check_plage(s.dispos)
                         plage_seance = self.find_plage_for_duration(s.dispos,c.duree,",".join(c.forces["day"]))
 
                         if plage_seance and plage_seance.dtStart>strtodate(c.minDate) and plage_seance.dtEnd<strtodate(c.maxDate):
@@ -364,7 +364,7 @@ class Agenda:
                                 for p in profs:
                                     p.dispos = self.reserve(p.dispos, plage_seance)
                                 self.cours.remove(c)
-                                i=i-1
+                                if i>1: i=i-1
                                 if log: print(f"\rNb de cours restant : {len(self.cours)}",end="")
                         else:
                             pass
@@ -433,7 +433,7 @@ class Agenda:
 import concurrent.futures
 
 
-def execute_run(filename, max_occ=20,finder_occ=80000,log=False):
+def execute_run(filename, max_occ=20000,finder_occ=80000,log=False):
     # On crée une instance propre à chaque processus
     agenda_instance = Agenda()
 
