@@ -81,7 +81,7 @@ class Cours:
     priorite=1
 
     def __str__(self):
-        return f"Cours {self.titre} - de {Plage(self.minDate,self.maxDate)} avec {self.Prof_ID}"
+        return f"Cours {self.titre} de {self.duree} heures du groupe {self.groupe} - de {Plage(self.minDate,self.maxDate)} avec {self.Prof_ID}"
 
     def __init__(self,d:dict):
         self.duree=d["duree"]

@@ -11,6 +11,9 @@ def plagetostr(plage:tuple) -> str:
 def strtodate(dt:str) -> datetime | None :
     if type(dt)==datetime: return dt
     if type(dt) == pd.Timestamp: return dt.to_pydatetime()
+    if type(dt)==float:
+        return None
+
     dt = dt.replace("  ", " ")
     if not " " in dt: dt=dt+" 00:00"
     try:

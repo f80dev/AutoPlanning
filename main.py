@@ -1,6 +1,7 @@
 import copy
 import random
 import datetime
+from random import shuffle
 from sys import argv
 
 from google.oauth2.service_account import Credentials
@@ -81,6 +82,8 @@ class Agenda:
             if "/" in spreadsheet_id:
                 # La première ligne est automatiquement utilisée comme en-tête.
                 df = pd.read_excel(spreadsheet_id, sheet_name=sheet_name)
+
+                if "Exclure" in list(df.keys()): df=df[df['Exclure'] != 'oui']
 
                 # Convertir le DataFrame en une liste de dictionnaires.
                 # L'orientation 'records' crée exactement le format souhaité.
@@ -222,7 +225,8 @@ class Agenda:
         if len(self.cours)==0: return None
         if index>0:
             #TODO a vérifier
-            return sorted(self.cours,key=lambda x: x.duree,reverse=True)[index]
+            #return sorted(self.cours,key=lambda x: x.duree,reverse=True)[index]
+            return self.cours[index]
         else:
             return random.choice(self.cours)
 
@@ -322,10 +326,13 @@ class Agenda:
                 self.groupes=copy.deepcopy(start_agenda["groupes"])
                 self.distances=copy.deepcopy(start_agenda["distances"])
 
+                random.shuffle(self.professeurs)
+                random.shuffle(self.cours)
+
 
             planning = []
             total_cours = len(self.cours)
-
+            i=0
             for i in range(finder_occ):
                 c = self.get_cours()
                 if c is None:
@@ -342,7 +349,7 @@ class Agenda:
 
                     if s is None:
                         self.log(f"Le cours {c} est imcompatible avec les salles existantes")
-                        break
+
 
                     if s and len(s.dispos)>0:
                         #check_plage(s.dispos)
@@ -353,7 +360,6 @@ class Agenda:
                             for p in profs:
                                 if not self.check_plage(p.dispos, plage_seance):
                                     b=False
-                                    break
 
                             if b:
                                 for k in c.props:
@@ -375,6 +381,9 @@ class Agenda:
                 return self.eval_config(planning)
             else:
                 print(f" - Echec de planification {occ} tentatives. {total_cours - len(self.cours)}/{total_cours} planifiés")
+                if len(self.cours)<10:
+                    for c in self.cours:
+                        print(f"Cours: {c}")
                 reliquats = reliquats + self.cours
 
         return Config(planning, reliquat=reliquats, result=False,log=self.intern_log)
@@ -433,7 +442,7 @@ class Agenda:
 import concurrent.futures
 
 
-def execute_run(filename, max_occ=20000,finder_occ=80000,log=False):
+def execute_run(filename, max_occ=20000,finder_occ=10000,log=False):
     # On crée une instance propre à chaque processus
     agenda_instance = Agenda()
 
