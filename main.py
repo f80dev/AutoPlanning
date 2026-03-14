@@ -442,7 +442,7 @@ class Agenda:
 import concurrent.futures
 
 
-def execute_run(filename, max_occ=20000,finder_occ=10000,log=False):
+def execute_run(filename, max_occ=40000,finder_occ=40000,log=False):
     # On crée une instance propre à chaque processus
     agenda_instance = Agenda()
 
