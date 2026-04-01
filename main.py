@@ -281,7 +281,7 @@ class Agenda:
 
 
 
-    def find_plage_for_duration(self,disponibilite:list[Plage], duree:int,requirment_day:str,try_to_save_lunch=6) -> Plage | None:
+    def find_plage_for_duration(self,disponibilite:list[Plage], duree:int,requirment_day:str,try_to_save_lunch=25) -> Plage | None:
         """
         cherche une disponiblité et met a jour les dispos suite à réservation
         :param disponibilite:
@@ -319,6 +319,21 @@ class Agenda:
             finder_occ=10,log=False,
             start_agenda=None,
             sort_cours=True) -> Config | None:
+        """
+        Lance l'algorithme de génération du planning.
+
+        Args:
+            filename (str): Chemin vers le fichier Excel de données (par défaut "./planning.xlsm").
+            max_occ (int): Nombre maximum de tentatives globales de planification.
+            finder_occ (int): Nombre de passes internes pour tenter de placer chaque cours.
+            log (bool): Si True, affiche l'avancement dans la console.
+            start_agenda (dict): Un dictionnaire contenant des listes déjà initialisées (professeurs, cours, etc.).
+                                 Si None, les données sont chargées depuis le fichier.
+            sort_cours (bool): Si True, trie les cours par durée décroissante pour optimiser le placement.
+
+        Returns:
+            Config | None: Un objet Config contenant le planning généré, ou un objet Config marqué comme échec avec les reliquats.
+        """
         reliquats=[]
         for occ in range(max_occ):
             rc = False
@@ -490,4 +505,3 @@ if __name__ == '__main__':
             filter_plage(best_config.planning, datetime.datetime.fromisoformat("2026-01-01"),
                          datetime.datetime.fromisoformat("2026-12-31"))
         )
-
