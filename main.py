@@ -313,7 +313,12 @@ class Agenda:
         pass
         #TODO ici ne plus prendre aux hasard et balayé toutes les possibilités
 
-    def run(self,filename="./planning.xlsm",max_occ=10000,finder_occ=100000,log=False,start_agenda=None) -> Config | None:
+
+
+    def run(self,filename="./planning.xlsm",max_occ=10000,
+            finder_occ=10,log=False,
+            start_agenda=None,
+            sort_cours=True) -> Config | None:
         reliquats=[]
         for occ in range(max_occ):
             rc = False
@@ -326,61 +331,58 @@ class Agenda:
                 self.groupes=copy.deepcopy(start_agenda["groupes"])
                 self.distances=copy.deepcopy(start_agenda["distances"])
 
-                random.shuffle(self.professeurs)
-                random.shuffle(self.cours)
-
+            random.shuffle(self.professeurs)
+            random.shuffle(self.cours)
+            if sort_cours:
+                sorted(self.cours,key=lambda x:x.duree,reverse=True)
 
             planning = []
             total_cours = len(self.cours)
             i=0
             for i in range(finder_occ):
-                c = self.get_cours()
-                if c is None:
-                    rc = True
-                    break
+                for c in self.cours:
+                    profs = self.get_profs(c.Prof_ID)
+                    if self.get_groupe(c.groupe):
+                        s = self.get_salle(
+                            min_capacite=self.get_groupe(c.groupe).effectif,
+                            requirments=c.requirments,
+                            white_list=c.forces["salles"]
+                        )
 
-                profs = self.get_profs(c.Prof_ID)
-                if self.get_groupe(c.groupe):
-                    s = self.get_salle(
-                        min_capacite=self.get_groupe(c.groupe).effectif,
-                        requirments=c.requirments,
-                        white_list=c.forces["salles"]
-                    )
-
-                    if s is None:
-                        self.log(f"Le cours {c} est imcompatible avec les salles existantes")
+                        if s is None:
+                            self.log(f"Le cours {c} est imcompatible avec les salles existantes")
 
 
-                    if s and len(s.dispos)>0:
-                        #check_plage(s.dispos)
-                        plage_seance = self.find_plage_for_duration(s.dispos,c.duree,",".join(c.forces["day"]))
+                        if s and len(s.dispos)>0:
+                            #check_plage(s.dispos)
+                            plage_seance = self.find_plage_for_duration(s.dispos,c.duree,",".join(c.forces["day"]))
 
-                        if plage_seance and plage_seance.dtStart>strtodate(c.minDate) and plage_seance.dtEnd<strtodate(c.maxDate):
-                            b=True
-                            for p in profs:
-                                if not self.check_plage(p.dispos, plage_seance):
-                                    b=False
-
-                            if b:
-                                for k in c.props:
-                                    if type(c.props[k])==float: c.props[k]=""
-
-                                planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre,c.props,c.groupe))
-                                s.dispos = self.reserve(s.dispos, plage_seance)
+                            if plage_seance and plage_seance.dtStart>strtodate(c.minDate) and plage_seance.dtEnd<strtodate(c.maxDate):
+                                b=True
                                 for p in profs:
-                                    p.dispos = self.reserve(p.dispos, plage_seance)
-                                self.cours.remove(c)
-                                if i>1: i=i-1
-                                if log: print(f"\rNb de cours restant : {len(self.cours)}",end="")
-                        else:
-                            pass
-                else:
-                    raise RuntimeError("Groupe inconnu")
+                                    if not self.check_plage(p.dispos, plage_seance):
+                                        b=False
 
-            if rc:
+                                if b:
+                                    for k in c.props:
+                                        if type(c.props[k])==float: c.props[k]=""
+
+                                    planning.append(Seance(plage_seance, s.Salle_ID, c.Prof_ID, c.titre,c.props,c.groupe))
+                                    s.dispos = self.reserve(s.dispos, plage_seance)
+                                    for p in profs:
+                                        p.dispos = self.reserve(p.dispos, plage_seance)
+                                    self.cours.remove(c)
+                                    if i>1: i=i-1
+                                    if log: print(f"\rNb de cours restant : {len(self.cours)}",end="")
+                            else:
+                                pass
+                    else:
+                        raise RuntimeError("Groupe inconnu")
+
+            if len(self.cours)==0:
                 return self.eval_config(planning)
             else:
-                print(f" - Echec de planification {occ} tentatives. {total_cours - len(self.cours)}/{total_cours} planifiés")
+                print(f" - {len(self.cours)} cours restants => échec de planification {occ} tentatives. {total_cours - len(self.cours)}/{total_cours} planifiés")
                 if len(self.cours)<10:
                     for c in self.cours:
                         print(f"Cours: {c}")
@@ -442,7 +444,7 @@ class Agenda:
 import concurrent.futures
 
 
-def execute_run(filename, max_occ=20000,finder_occ=20000,log=False):
+def execute_run(filename, max_occ=20000,finder_occ=20,log=False):
     # On crée une instance propre à chaque processus
     agenda_instance = Agenda()
 

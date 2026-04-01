@@ -118,11 +118,10 @@ class Professeur:
 @dataclass
 class Salle:
     Salle_ID:str
+    Nom:str
     capacite: int
     dispos:list[Plage]=field(default_factory=list[Plage])
     tags: str = ""
-
-
 
 
 @dataclass
