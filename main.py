@@ -41,6 +41,22 @@ def convert_recurence_to_plage(recurence:str,periode_recurence=600,open_time=8,c
     return rc
 
 
+def export_dict_to_excel(data:list[dict],workbook:str,worksheet:str="Main"):
+    """
+    Exports a list of dictionaries to a specified worksheet in an Excel workbook.
+    If the workbook exists, it appends the new worksheet. If not, it creates a new one.
+    """
+    if not workbook.endswith(".xlsx"): workbook=workbook+".xlsx"
+    df = pd.DataFrame(data)
+    try:
+        with pd.ExcelWriter(workbook, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=worksheet, index=False)
+    except FileNotFoundError:
+        # If the workbook does not exist, create a new one
+        with pd.ExcelWriter(workbook, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name=worksheet, index=False)
+
+
 class Agenda:
     salles:list[Salle]=[]
     professeurs:list[Professeur]=[]
@@ -49,6 +65,8 @@ class Agenda:
     groupes:list[Groupe]=[]
     distances:list[Distance]=[]
     intern_log=""
+    best_score=10000
+    best_planning=[]
 
     # Si vous modifiez ces portées, supprimez le fichier token.json.
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
@@ -63,6 +81,39 @@ class Agenda:
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         return Credentials.from_service_account_file("credentials.json")
 
+
+    def export_to_excel(self,workbook:str,format="%d/%m/%Y %H:%M"):
+        dispos_prof=[]
+        for p in self.professeurs:
+            if "dispos" in p.__dict__:
+                for d in p.dispos:
+                    dispos_prof.append({"prof":p.Prof_ID,"dtStart":d.dtStart.strftime(format),"dtEnd":d.dtEnd.strftime(format)})
+
+        dispos_salle = []
+        for s in self.salles:
+            if "dispos" in s.__dict__:
+                for d in s.dispos:
+                    dispos_salle.append({"salle":s.Salle_ID,"dtStart":d.dtStart.strftime(format),"dtEnd":d.dtEnd.strftime(format)})
+
+        for l in [self.cours,self.seances,self.professeurs,self.salles,self.groupes]:
+            rc=[]
+            for item in l:
+                d=item.__dict__
+                if "dispos" in d: del d["dispos"]
+                if "props" in d:
+                    for p in d["props"]:
+                        d["p_"+p]=d["props"][p]
+                    del d["props"]
+                rc.append(d)
+
+            if len(l)>0:
+                onglet_name=l[0].__class__.__name__+"s"
+                export_dict_to_excel(rc,workbook,onglet_name[0].upper()+onglet_name[1:])
+
+        export_dict_to_excel(dispos_prof, workbook, "DispoProf")
+        export_dict_to_excel(dispos_salle, workbook, "DispoSalle")
+
+        return True
 
 
 
@@ -147,7 +198,6 @@ class Agenda:
             heure_actuelle += datetime.timedelta(hours=1)
 
         return heures_disponibles
-
 
 
 
@@ -317,7 +367,7 @@ class Agenda:
 
     def run(self,filename="./planning.xlsm",max_occ=10000,
             finder_occ=10,log=False,
-            start_agenda=None,
+            start_agenda=None,export="",
             sort_cours=True) -> Config | None:
         """
         Lance l'algorithme de génération du planning.
@@ -353,7 +403,6 @@ class Agenda:
 
             planning = []
             total_cours = len(self.cours)
-            i=0
             for i in range(finder_occ):
                 for c in self.cours:
                     profs = self.get_profs(c.Prof_ID)
@@ -394,13 +443,23 @@ class Agenda:
                     else:
                         raise RuntimeError("Groupe inconnu")
 
+
             if len(self.cours)==0:
+                self.seances = planning
+                #self.export_to_excel(f"{export}_final")
                 return self.eval_config(planning)
             else:
+                if len(self.cours)<self.best_score:
+                    self.best_score=len(self.cours)
+                    self.seances = planning
+
+                    if len(export) > 0:
+                        self.export_to_excel(f"last_with_{len(self.cours)}_cours_restant_{export}")
+                    else:
+                        for c in self.cours:
+                            print(f"Cours nons planifiés: {c}")
+
                 print(f" - {len(self.cours)} cours restants => échec de planification {occ} tentatives. {total_cours - len(self.cours)}/{total_cours} planifiés")
-                if len(self.cours)<10:
-                    for c in self.cours:
-                        print(f"Cours: {c}")
                 reliquats = reliquats + self.cours
 
         return Config(planning, reliquat=reliquats, result=False,log=self.intern_log)
@@ -435,6 +494,11 @@ class Agenda:
 
 
     def eval_config(self, planning:list[Seance]) -> Config:
+        """
+        Evalue la distance entre les salles de séances consécutives
+        :param planning:
+        :return:
+        """
         groups=set([s.group for s in planning])
         distance=0
         for g in groups:
@@ -473,7 +537,7 @@ def execute_run(filename, max_occ=20000,finder_occ=20,log=False):
 
 
 if __name__ == '__main__':
-    n_executions = int(argv[1] if len(argv)>1 else 1)
+    n_executions = int(argv[1] if len(argv)>1 else 10)
 
     # On utilise ProcessPoolExecutor pour le vrai parallélisme CPU
     with concurrent.futures.ProcessPoolExecutor() as executor:

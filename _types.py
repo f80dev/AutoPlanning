@@ -140,10 +140,17 @@ class Seance:
     titre: str
     props:dict
     group:str
-    #Nom_Prof: str
 
     def __repr__(self):
         return f"Seance(dtStart='{self.dtStart}', dtEnd='{self.dtEnd}', salle='{self.salle}', Prof_ID='{self.Prof_ID}')"
+
+    def to_dict(self) -> dict:
+        d=self.__dict__
+        d["dtStart"]=self.plage.dtStart
+        d["dtEnd"] = self.plage.dtEnd
+        return d
+
+
 
 
 @dataclass
@@ -213,6 +220,8 @@ def check_plage(pl:list[Plage]):
 
     if len(union(pl))<len(pl):
         raise RuntimeError(f"Liste de plages non fusionnées")
+
+
 
 
 def union(periodes:list[Plage]) -> list[Plage]:

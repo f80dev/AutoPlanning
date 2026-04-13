@@ -1,16 +1,24 @@
 from _types import Professeur, Plage, union, intersection, soustraction, check_plage
-from main import Agenda
-
+from export import export_planning_to_json
+from main import Agenda, export_dict_to_excel
 
 
 def test_init_liste():
     a=Agenda()
     a.init_listes(classeur_id ="./planning.xlsm",periode_recurence=300 )
 
+def test_export_agenda():
+    a=Agenda()
+    a.init_listes(classeur_id ="./planning_memoires.xlsm",periode_recurence=300 )
+    a.export_to_excel("test.xlsx")
+
+
 def test_run():
     a=Agenda()
-    config=a.run("./planning.xlsm",max_occ=100,finder_occ=100)
+    config=a.run("./planning_memoires.xlsm",max_occ=100,finder_occ=100,export="memoires")
     print(f"{config}")
+    export_planning_to_json(a.seances,"planning_memoires.json")
+    a.export_to_excel("plannification.xlsx")
 
 
 def test_recherche_dispo():
@@ -18,6 +26,11 @@ def test_recherche_dispo():
         Plage({"dtStart": "4/2 10:00", "dtEnd": "4/2 12:00"}),
         Plage({"dtStart": "4/2 16:00", "dtEnd": "4/2 21:00"})
     ]
+
+def test_export_excel():
+    export_dict_to_excel([{"a":1,"b":2},{"a":3,"b":4}],"test.xlsx","test")
+    export_dict_to_excel([{"a": 1, "b": 2}, {"a": 3, "b": 4}], "test.xlsx", "test2")
+
 
 def test_union():
     l = [
