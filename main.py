@@ -1,7 +1,6 @@
 import copy
 import random
 import datetime
-from random import shuffle
 from sys import argv
 
 from google.oauth2.service_account import Credentials
